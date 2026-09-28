@@ -75812,7 +75812,7 @@ async function requestClaudeDraft(notes){
   const resp = await fetch("/api/generate", {
     method:"POST",
     headers:{ "content-type":"application/json" },
-    body: JSON.stringify({ passcode: getStoredPasscode(), payload })
+    body: JSON.stringify({ passcode: sessionPasscode, payload })
   }).catch(networkErr => {
     // fetch() itself throws (never reaches resp.ok) when the request never got a real HTTP
     // response at all — offline, DNS failure, a browser extension blocking the request, or
@@ -75836,6 +75836,7 @@ async function requestClaudeDraft(notes){
     throw e;
   });
   if(resp.status === 401){
+    sessionPasscode = '';
     clearStoredPasscode();
     showPasscodeGate('That passcode is no longer valid. Please re-enter it.');
     const e = new Error('Passcode required. Please re-enter it above.');
@@ -76536,6 +76537,11 @@ $('new-patient').addEventListener('click', ()=>{
 /* ================= passcode gate (server holds the Anthropic key; this just
    unlocks use of it) ================= */
 const PASSCODE_STORAGE_KEY = 'easybelly_passcode';
+// Authoritative for the current page load, set the moment a passcode is
+// verified. Never re-derived from localStorage mid-session, so a storage
+// write that silently fails (private browsing, strict tracking protection,
+// etc.) can't leave the app "unlocked" while actually holding no passcode.
+let sessionPasscode = '';
 function getStoredPasscode(){
   try{ return localStorage.getItem(PASSCODE_STORAGE_KEY) || ''; }catch(e){ return ''; }
 }
@@ -76575,6 +76581,7 @@ async function submitPasscode(){
   try{
     const ok = await verifyPasscode(pc);
     if(ok){
+      sessionPasscode = pc;
       setStoredPasscode(pc);
       hidePasscodeGate();
     } else {
@@ -76593,11 +76600,13 @@ async function initPasscodeGate(){
   if(!saved){ showPasscodeGate(); return; }
   try{
     const ok = await verifyPasscode(saved);
-    if(ok){ hidePasscodeGate(); }
+    if(ok){ sessionPasscode = saved; hidePasscodeGate(); }
     else { clearStoredPasscode(); showPasscodeGate('Your saved passcode is no longer valid. Please re-enter it.'); }
   }catch(e){
-    // Can't verify right now (offline etc.) — let them in provisionally; the
-    // real check happens again on the first generate call anyway.
+    // Can't verify right now (offline etc.) — let them in provisionally, using
+    // the remembered value; the real check happens again on the first
+    // generate call anyway, which will re-gate if it turns out to be wrong.
+    sessionPasscode = saved;
     hidePasscodeGate();
   }
 }
