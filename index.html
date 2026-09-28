@@ -75835,7 +75835,10 @@ async function requestClaudeDraft(notes){
     e.retryable = true;
     throw e;
   });
-  if(resp.status === 401){
+  if(resp.status === 403){
+    // Our own passcode check failing — distinct from a 401 Anthropic itself
+    // might return (e.g. an invalid API key), which should surface as a
+    // normal API error below instead of being misread as a bad passcode.
     sessionPasscode = '';
     clearStoredPasscode();
     showPasscodeGate('That passcode is no longer valid. Please re-enter it.');

@@ -27,8 +27,14 @@ module.exports = async (req, res) => {
   const configuredPasscode = process.env.ACCESS_PASSCODE;
   const { passcode, payload } = req.body || {};
 
+  // 403, not 401 — this endpoint also proxies Anthropic's own response
+  // (including its 401 for an invalid API key) straight through below, and
+  // that must stay distinguishable from "your passcode is wrong" on the
+  // client, or an invalid ANTHROPIC_API_KEY gets misreported as a bad
+  // passcode and sends the user back to the passcode gate instead of telling
+  // them what's actually broken.
   if (configuredPasscode && passcode !== configuredPasscode) {
-    res.status(401).json({ error: { message: 'Incorrect or missing passcode.' } });
+    res.status(403).json({ error: { message: 'Incorrect or missing passcode.' } });
     return;
   }
 
